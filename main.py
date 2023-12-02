@@ -1,6 +1,7 @@
 import pygame
 import sys
 import math
+import time
 from arange import arange
 
 # Initialize Pygame
@@ -41,26 +42,39 @@ SCREEN_HEIGHT = max(HEIGHT, MAP_HEIGHT)
 # Set up the display
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
+# Define a function to clamp values between a minimum and maximum
+def clamp(value, min_value, max_value):
+    return max(min_value, min(value, max_value))
+
 # Define a function to cast a ray
 def cast_ray(angle):
     # Calculate the direction of the ray
     dx = math.cos(angle)
     dy = math.sin(angle)
 
-    # Step along the ray until we hit a wall
-    for i in arange(0,100,0.1):
+    # First pass: Use a large step size to find an approximate intersection
+    for i in arange(0, 100, 1):
         x = player_pos[0] + dx * i
         y = player_pos[1] + dy * i
 
         # If we're outside the map, stop
         if x < 0 or y < 0 or x >= len(MAP[0]) or y >= len(MAP):
-            return i
+            return i, None
 
         # If we've hit a wall, stop
         if MAP[int(y)][int(x)] == 1:
-            return i
+            break  # We've found an approximate intersection, break out of the loop
 
-    return i
+    # Second pass: Refine the intersection using a smaller step size
+    for j in arange(i - 1, i, 0.01):
+        x = player_pos[0] + dx * j
+        y = player_pos[1] + dy * j
+
+        # If we've hit a wall, stop
+        if MAP[int(y)][int(x)] == 1:
+            return j, (x % 1, y % 1)  # Return the refined distance and the hit point
+
+    return i, None
 
 # Define a function to render the raycast
 def render_raycast(save_distances=False):
@@ -70,9 +84,12 @@ def render_raycast(save_distances=False):
     # Create a list to store the distances
     distances = []
 
+    # Start the timer
+    start_time = time.time()
+
     # Cast a ray for each column of the screen
     for x in range(WIDTH):
-        distance = cast_ray(player_angle + x / WIDTH - 0.5)
+        distance = cast_ray(player_angle + x / WIDTH - 0.5)[0]
         distances.append(distance)
         # Draw a line with height inversely proportional to the distance
         if distance == 0:
@@ -82,16 +99,24 @@ def render_raycast(save_distances=False):
 
         # Calculate a grayscale color based on the distance
         color = 255 - min(distance * 50, 255)
+        color = clamp(color, 0, 255) # distance can be a small negative number, so we clamp it
 
         pygame.draw.line(surface, (color, color, color), (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
+
+
+    # End the timer and calculate the elapsed time
+    end_time = time.time()
+    elapsed_time = (end_time - start_time) * 1000  # Convert to milliseconds
 
     # If save_distances is True, write the distances to a file
     if save_distances:
         with open('distances.txt', 'w') as f:
+            f.write(f'Rendering took {elapsed_time} milliseconds\n')
             for distance in distances:
                 f.write(str(distance) + '\n')
 
     return surface
+
 # Define a function to render the map
 def render_map():
     # Create a new surface
