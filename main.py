@@ -40,6 +40,9 @@ MAP_HEIGHT = len(MAP) * 10
 SCREEN_WIDTH = WIDTH + MAP_WIDTH
 SCREEN_HEIGHT = max(HEIGHT, MAP_HEIGHT)
 
+# Load the wall texture
+wall_texture = pygame.image.load('wall.png')
+
 # Set up the display
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
@@ -92,21 +95,39 @@ def render_raycast(save_distances=False):
     # Start the timer
     start_time = time.time()
 
+    tx_max = 0
+    tx_min = -1
+
     # Cast a ray for each column of the screen
     for x in range(WIDTH):
-        distance = cast_ray(player_angle + x / WIDTH - 0.5)[0]
+        distance, hit  = cast_ray(player_angle + x / WIDTH - 0.5)
         distances.append(distance)
-        # Draw a line with height inversely proportional to the distance
-        if distance == 0:
-            height = HEIGHT
-        else:
-            height = HEIGHT / distance
 
-        # Calculate a grayscale color based on the distance
-        color = 255 - min(distance * 50, 255)
-        color = clamp(color, 0, 255) # distance can be a small negative number, so we clamp it
+        if hit is not None:
+            # Look up the texture column
+            tx, _ = hit
+            tx = int(tx * wall_texture.get_width())
 
-        pygame.draw.line(surface, (color, color, color), (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
+            # Calculate the height of the wall slice
+            height = int(HEIGHT / max(distance, 0.0001))
+
+            # Scale the texture column to the height of the wall slice
+            column = pygame.transform.scale(wall_texture.subsurface((tx, 0, 1, wall_texture.get_height())), (1, height))
+
+            # Draw the texture column
+            surface.blit(column, (x, HEIGHT // 2 - height // 2))            
+        
+        # # Draw a line with height inversely proportional to the distance
+        # if distance == 0:
+        #     height = HEIGHT
+        # else:
+        #     height = HEIGHT / distance
+
+        # # Calculate a grayscale color based on the distance
+        # color = 255 - min(distance * 50, 255)
+        # color = clamp(color, 0, 255) # distance can be a small negative number, so we clamp it
+
+        # pygame.draw.line(surface, (color, color, color), (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
 
 
     # End the timer and calculate the elapsed time
