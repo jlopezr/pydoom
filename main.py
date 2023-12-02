@@ -62,22 +62,35 @@ def cast_ray(angle):
     return i
 
 # Define a function to render the raycast
-def render_raycast():
+def render_raycast(save_distances=False):
     # Create a new surface
     surface = pygame.Surface((WIDTH, HEIGHT))
+
+    # Create a list to store the distances
+    distances = []
 
     # Cast a ray for each column of the screen
     for x in range(WIDTH):
         distance = cast_ray(player_angle + x / WIDTH - 0.5)
+        distances.append(distance)
         # Draw a line with height inversely proportional to the distance
         if distance == 0:
             height = HEIGHT
         else:
             height = HEIGHT / distance
-        pygame.draw.line(surface, (255, 255, 255), (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
+
+        # Calculate a grayscale color based on the distance
+        color = 255 - min(distance * 2, 255)
+
+        pygame.draw.line(surface, (color, color, color), (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
+
+    # If save_distances is True, write the distances to a file
+    if save_distances:
+        with open('distances.txt', 'w') as f:
+            for distance in distances:
+                f.write(str(distance) + '\n')
 
     return surface
-
 # Define a function to render the map
 def render_map():
     # Create a new surface
@@ -124,6 +137,10 @@ while True:
         player_angle -= 0.1
     if keys[pygame.K_RIGHT]:
         player_angle += 0.1
+    if keys[pygame.K_p]:
+        render_raycast(True)
+        pygame.time.wait(500)
+
 
     # Render the raycast and blit it onto the screen
     raycast = render_raycast()
