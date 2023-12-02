@@ -15,6 +15,7 @@ SPEED = 0.05
 # Define the player
 player_pos = [5, 5]
 player_angle = 0
+god_mode = False
 
 # Define the map
 MAP = [
@@ -69,6 +70,10 @@ def cast_ray(angle):
     for j in arange(i - 1, i, 0.01):
         x = player_pos[0] + dx * j
         y = player_pos[1] + dy * j
+
+        # If we're outside the map, stop
+        if x < 0 or y < 0 or x >= len(MAP[0]) or y >= len(MAP):
+            return i, None
 
         # If we've hit a wall, stop
         if MAP[int(y)][int(x)] == 1:
@@ -147,26 +152,33 @@ while True:
 
     # Get the current state of the keyboard
     keys = pygame.key.get_pressed()
+    new_pos = list(player_pos)
     if keys[pygame.K_w]:
-        player_pos[0] += math.cos(player_angle) * SPEED
-        player_pos[1] += math.sin(player_angle) * SPEED
+        new_pos[0] += math.cos(player_angle) * SPEED
+        new_pos[1] += math.sin(player_angle) * SPEED
     if keys[pygame.K_s]:
-        player_pos[0] -= math.cos(player_angle) * SPEED
-        player_pos[1] -= math.sin(player_angle) * SPEED
+        new_pos[0] -= math.cos(player_angle) * SPEED
+        new_pos[1] -= math.sin(player_angle) * SPEED
     if keys[pygame.K_d]:
-        player_pos[0] -= math.sin(player_angle) * SPEED
-        player_pos[1] += math.cos(player_angle) * SPEED
+        new_pos[0] -= math.sin(player_angle) * SPEED
+        new_pos[1] += math.cos(player_angle) * SPEED
     if keys[pygame.K_a]:
-        player_pos[0] += math.sin(player_angle) * SPEED
-        player_pos[1] -= math.cos(player_angle) * SPEED
+        new_pos[0] += math.sin(player_angle) * SPEED
+        new_pos[1] -= math.cos(player_angle) * SPEED
     if keys[pygame.K_LEFT]:
         player_angle -= 0.1
     if keys[pygame.K_RIGHT]:
         player_angle += 0.1
+    if keys[pygame.K_g]:
+        god_mode = not god_mode  # Toggle god mode
     if keys[pygame.K_p]:
         render_raycast(True)
         pygame.time.wait(500)
 
+    # Check if the new position is inside a wall
+    if god_mode or MAP[int(new_pos[1])][int(new_pos[0])] == 0:
+        # If god mode is enabled or the new position is not inside a wall, update the player's position
+        player_pos = new_pos
 
     # Render the raycast and blit it onto the screen
     raycast = render_raycast()
