@@ -8,9 +8,7 @@ pygame.init()
 # Set up some constants
 WIDTH, HEIGHT = 640, 480
 FPS = 60
-
-# Set up the display
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
+SPEED = 0.05
 
 # Define the player
 player_pos = [5, 5]
@@ -30,6 +28,17 @@ MAP = [
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ]
+
+# Define the map size in pixels
+MAP_WIDTH = len(MAP[0]) * 10
+MAP_HEIGHT = len(MAP) * 10
+
+# Define the screen size
+SCREEN_WIDTH = WIDTH + MAP_WIDTH
+SCREEN_HEIGHT = max(HEIGHT, MAP_HEIGHT)
+
+# Set up the display
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
 # Define a function to cast a ray
 def cast_ray(angle):
@@ -61,8 +70,32 @@ def render_raycast():
     for x in range(WIDTH):
         distance = cast_ray(player_angle + x / WIDTH - 0.5)
         # Draw a line with height inversely proportional to the distance
-        height = HEIGHT / distance
+        if distance == 0:
+            height = HEIGHT
+        else:
+            height = HEIGHT / distance
         pygame.draw.line(surface, (255, 255, 255), (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
+
+    return surface
+
+# Define a function to render the map
+def render_map():
+    # Create a new surface
+    surface = pygame.Surface((WIDTH, HEIGHT))
+
+    # Draw the map
+    for y in range(len(MAP)):
+        for x in range(len(MAP[y])):
+            if MAP[y][x] == 1:
+                pygame.draw.rect(surface, (255, 255, 255), pygame.Rect(x * 10, y * 10, 10, 10))
+
+    # Draw the player
+    pygame.draw.circle(surface, (255, 0, 0), (int(player_pos[0] * 10), int(player_pos[1] * 10)), 5)
+
+    # Draw the player's direction
+    dx = math.cos(player_angle) * 20
+    dy = math.sin(player_angle) * 20
+    pygame.draw.line(surface, (255, 0, 0), (int(player_pos[0] * 10), int(player_pos[1] * 10)), (int(player_pos[0] * 10 + dx), int(player_pos[1] * 10 + dy)))
 
     return surface
 
@@ -73,9 +106,32 @@ while True:
             pygame.quit()
             sys.exit()
 
+    # Get the current state of the keyboard
+    keys = pygame.key.get_pressed()
+    if keys[pygame.K_w]:
+        player_pos[0] += math.cos(player_angle) * SPEED
+        player_pos[1] += math.sin(player_angle) * SPEED
+    if keys[pygame.K_s]:
+        player_pos[0] -= math.cos(player_angle) * SPEED
+        player_pos[1] -= math.sin(player_angle) * SPEED
+    if keys[pygame.K_d]:
+        player_pos[0] -= math.sin(player_angle) * SPEED
+        player_pos[1] += math.cos(player_angle) * SPEED
+    if keys[pygame.K_a]:
+        player_pos[0] += math.sin(player_angle) * SPEED
+        player_pos[1] -= math.cos(player_angle) * SPEED
+    if keys[pygame.K_LEFT]:
+        player_angle -= 0.1
+    if keys[pygame.K_RIGHT]:
+        player_angle += 0.1
+
     # Render the raycast and blit it onto the screen
     raycast = render_raycast()
-    screen.blit(raycast, (0, 0))
+    screen.blit(raycast, (0, (SCREEN_HEIGHT - HEIGHT) // 2))
+
+    # Render the map and blit it onto the screen
+    map_view = render_map()
+    screen.blit(map_view, (WIDTH, (SCREEN_HEIGHT - MAP_HEIGHT) // 2))
 
     pygame.display.flip()
     pygame.time.Clock().tick(FPS)
