@@ -1,6 +1,7 @@
 import pygame
 import sys
 import math
+from arange import arange
 
 # Initialize Pygame
 pygame.init()
@@ -47,7 +48,7 @@ def cast_ray(angle):
     dy = math.sin(angle)
 
     # Step along the ray until we hit a wall
-    for i in range(100):
+    for i in arange(0,100,0.1):
         x = player_pos[0] + dx * i
         y = player_pos[1] + dy * i
 
@@ -80,7 +81,7 @@ def render_raycast(save_distances=False):
             height = HEIGHT / distance
 
         # Calculate a grayscale color based on the distance
-        color = 255 - min(distance * 2, 255)
+        color = 255 - min(distance * 50, 255)
 
         pygame.draw.line(surface, (color, color, color), (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
 
