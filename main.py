@@ -2,7 +2,6 @@ import pygame
 import sys
 import math
 import time
-from arange import arange
 
 # Initialize Pygame
 pygame.init()
@@ -49,65 +48,72 @@ font = pygame.font.Font(None, 24)  # Change the size as needed
 # Set up the display
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
+# Create a new surface
+raycast_surface = pygame.Surface((WIDTH, HEIGHT))
+
+# Create a new surface
+map_surface = pygame.Surface((MAP_WIDTH, MAP_HEIGHT))
+
 # Define a function to clamp values between a minimum and maximum
 def clamp(value, min_value, max_value):
     return max(min_value, min(value, max_value))
 
-# Define a function to cast a ray
 def cast_ray(angle):
     # Calculate the direction of the ray
     dx = math.cos(angle)
     dy = math.sin(angle)
 
-    # First pass: Use a large step size to find an approximate intersection
-    for i in arange(0, 100, 1):
-        x = player_pos[0] + dx * i
-        y = player_pos[1] + dy * i
+    # Calculate the length of the ray from one x or y-side to next x or y-side
+    delta_dist_x = abs(1 / (dx if dx != 0 else 1e-5))
+    delta_dist_y = abs(1 / (dy if dy != 0 else 1e-5))
 
-        # If we're outside the map, stop
-        if x < 0 or y < 0 or x >= len(MAP[0]) or y >= len(MAP):
-            return i, None
+    # Calculate step direction and initial side distance
+    if dx < 0:
+        step_x = -1
+        side_dist_x = (player_pos[0] - int(player_pos[0])) * delta_dist_x
+    else:
+        step_x = 1
+        side_dist_x = (int(player_pos[0]) + 1 - player_pos[0]) * delta_dist_x
 
-        # If we've hit a wall, stop
-        if MAP[int(y)][int(x)] == 1:
-            break  # We've found an approximate intersection, break out of the loop
+    if dy < 0:
+        step_y = -1
+        side_dist_y = (player_pos[1] - int(player_pos[1])) * delta_dist_y
+    else:
+        step_y = 1
+        side_dist_y = (int(player_pos[1]) + 1 - player_pos[1]) * delta_dist_y
 
-    # Second pass: Refine the intersection using a smaller step size
-    for j in arange(i - 1, i, 0.01):
-        x = player_pos[0] + dx * j
-        y = player_pos[1] + dy * j
+    # Perform DDA
+    x, y = int(player_pos[0]), int(player_pos[1])
+    hit_side = None
+    while MAP[y][x] == 0:
+        # Jump to next map square
+        if side_dist_x < side_dist_y:
+            side_dist_x += delta_dist_x
+            x += step_x
+            hit_side = 0
+        else:
+            side_dist_y += delta_dist_y
+            y += step_y
+            hit_side = 1
 
-        # If we're outside the map, stop
-        if x < 0 or y < 0 or x >= len(MAP[0]) or y >= len(MAP):
-            return i, None
+        # Check if ray has hit a wall
+        if MAP[y][x] > 0:
+            break
 
-        # If we've hit a wall, stop
-        if MAP[int(y)][int(x)] == 1:
-            if dx > 0:
-                hit_x = (x - int(x)) % 1
-            else:
-                hit_x = 1 - (x - int(x)) % 1
-
-            if dy > 0:
-                hit_y = (y - int(y)) % 1
-            else:
-                hit_y = 1 - (y - int(y)) % 1
-
-            # Determine whether the ray hit a vertical or a horizontal wall
-            if abs(dx) > abs(dy):
-                # The ray hit a vertical wall, so use the x-coordinate of the hit point as the texture coordinate
-                hit = (hit_x, hit_y)
-            else:
-                # The ray hit a horizontal wall, so use the y-coordinate of the hit point as the texture coordinate
-                hit = (hit_y, hit_x)
-
-            return j, hit
-    return i, None
+    # Calculate distance of perpendicular ray (Euclidean distance will give fisheye effect!)
+    if hit_side is None:
+        perp_wall_dist = 0  # or some other default value
+    elif hit_side == 0:
+        perp_wall_dist = (x - player_pos[0] + (1 - step_x) / 2) / dx
+    else:
+        perp_wall_dist = (y - player_pos[1] + (1 - step_y) / 2) / dy
+    return perp_wall_dist, hit_side
 
 # Define a function to render the raycast
 def render_raycast(save_distances=False):
-    # Create a new surface
-    surface = pygame.Surface((WIDTH, HEIGHT))
+
+    # Fill the render surface with black
+    raycast_surface.fill((0, 0, 0))
 
     # Create a list to store the distances
     distances = []
@@ -144,7 +150,7 @@ def render_raycast(save_distances=False):
         color = 255 - min(distance * 50, 255)
         color = clamp(color, 0, 255) # distance can be a small negative number, so we clamp it
 
-        pygame.draw.line(surface, (color, color, color), (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
+        pygame.draw.line(raycast_surface, (color, color, color), (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
 
 
     # End the timer and calculate the elapsed time
@@ -159,32 +165,29 @@ def render_raycast(save_distances=False):
             for distance in distances:
                 f.write(str(distance) + '\n')
 
-    return surface
-
 # Define a function to render the map
 def render_map():
-    # Create a new surface
-    surface = pygame.Surface((WIDTH, HEIGHT))
+
+    # Fill the map surface with black
+    map_surface.fill((0, 0, 0))
 
     # Draw the map
     for y in range(len(MAP)):
         for x in range(len(MAP[y])):
             if MAP[y][x] == 1:
-                pygame.draw.rect(surface, (255, 255, 255), pygame.Rect(x * 10, y * 10, 10, 10))
+                pygame.draw.rect(map_surface, (255, 255, 255), pygame.Rect(x * 10, y * 10, 10, 10))
 
     # Draw the player
-    pygame.draw.circle(surface, (255, 0, 0), (int(player_pos[0] * 10), int(player_pos[1] * 10)), 5)
+    pygame.draw.circle(map_surface, (255, 0, 0), (int(player_pos[0] * 10), int(player_pos[1] * 10)), 5)
 
     # Draw the player's direction
     dx = math.cos(player_angle) * 20
     dy = math.sin(player_angle) * 20
-    pygame.draw.line(surface, (255, 0, 0), (int(player_pos[0] * 10), int(player_pos[1] * 10)), (int(player_pos[0] * 10 + dx), int(player_pos[1] * 10 + dy)))
-
-    return surface
+    pygame.draw.line(map_surface, (255, 0, 0), (int(player_pos[0] * 10), int(player_pos[1] * 10)), (int(player_pos[0] * 10 + dx), int(player_pos[1] * 10 + dy)))
 
 # Game loop
-print("NEW CLOCK")
 clock = pygame.time.Clock()
+new_pos = [0, 0]
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -193,7 +196,8 @@ while True:
 
     # Get the current state of the keyboard
     keys = pygame.key.get_pressed()
-    new_pos = list(player_pos)
+    new_pos[0] = player_pos[0]
+    new_pos[1] = player_pos[1]
     if keys[pygame.K_w]:
         new_pos[0] += math.cos(player_angle) * SPEED
         new_pos[1] += math.sin(player_angle) * SPEED
@@ -223,12 +227,12 @@ while True:
         player_pos = new_pos
 
     # Render the raycast and blit it onto the screen
-    raycast = render_raycast()
-    screen.blit(raycast, (0, (SCREEN_HEIGHT - HEIGHT) // 2))
+    render_raycast()
+    screen.blit(raycast_surface, (0, (SCREEN_HEIGHT - HEIGHT) // 2))
 
     # Render the map and blit it onto the screen
-    map_view = render_map()
-    screen.blit(map_view, (WIDTH, (SCREEN_HEIGHT - MAP_HEIGHT) // 2))
+    render_map()    
+    screen.blit(map_surface, (WIDTH, (SCREEN_HEIGHT - MAP_HEIGHT) // 2))
 
     # Calculate the FPS
     fps = clock.get_fps()
