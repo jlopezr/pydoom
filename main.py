@@ -185,8 +185,8 @@ def render_map():
     # Draw the map
     for y in range(len(MAP)):
         for x in range(len(MAP[y])):
-            if MAP[y][x] == 1:
-                pygame.draw.rect(map_surface, (255, 255, 255), pygame.Rect(x * 10, y * 10, 10, 10))
+            if MAP[y][x] > 0:
+                pygame.draw.rect(map_surface, COLOR_MAP.get(MAP[y][x],(0,0,0)), pygame.Rect(x * 10, y * 10, 10, 10))
 
     # Draw the player
     pygame.draw.circle(map_surface, (255, 0, 0), (int(player_pos[0] * 10), int(player_pos[1] * 10)), 5)
