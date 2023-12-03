@@ -94,6 +94,7 @@ def cast_ray(angle):
     # Perform DDA
     x, y = int(player_pos[0]), int(player_pos[1])
     hit_side = None
+    wall_value = None
     while MAP[y][x] == 0:
         # Jump to next map square
         if side_dist_x < side_dist_y:
@@ -155,12 +156,13 @@ def render_raycast(save_distances=False):
             height = HEIGHT
         else:
             height = HEIGHT / distance
-
-        # Calculate a grayscale color based on the distance
-        #color = 255 - min(distance * 50, 255)
-        #color = clamp(color, 0, 255) # distance can be a small negative number, so we clamp it            
-        color = COLOR_MAP.get(wall_value, (0, 0, 0))
-
+        
+        base_color = COLOR_MAP.get(wall_value, (0, 0, 0))
+                
+        # Scale the color by a factor that decreases with distance
+        # The max() function is used to avoid division by zero
+        color = tuple(int(c / max(distance / 1.5, 1)) for c in base_color)
+        
         pygame.draw.line(raycast_surface, color, (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
 
 
@@ -198,7 +200,6 @@ def render_map():
 
 # Game loop
 clock = pygame.time.Clock()
-new_pos = [0, 0]
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -207,8 +208,7 @@ while True:
 
     # Get the current state of the keyboard
     keys = pygame.key.get_pressed()
-    new_pos[0] = player_pos[0]
-    new_pos[1] = player_pos[1]
+    new_pos = list(player_pos)
     if keys[pygame.K_w]:
         new_pos[0] += math.cos(player_angle) * SPEED
         new_pos[1] += math.sin(player_angle) * SPEED
@@ -232,7 +232,7 @@ while True:
         render_raycast(True)
         pygame.time.wait(500)
 
-    # Check if the new position is inside a wall
+    # Check if the new position is inside a wall    
     if god_mode or MAP[int(new_pos[1])][int(new_pos[0])] == 0:
         # If god mode is enabled or the new position is not inside a wall, update the player's position
         player_pos = new_pos
@@ -248,12 +248,11 @@ while True:
     # Calculate the FPS
     fps = clock.get_fps()
 
-    # Render the FPS as text (shadow)
-    fps_text_shadow = font.render(f'FPS: {fps:.2f}', True, (0, 0, 0))
-    screen.blit(fps_text_shadow, (11, 11))  # Offset by 1 pixel
-    
     # Render the FPS as text
-    fps_text = font.render(f'FPS: {fps:.2f}', True, (255, 255, 255))
+    txt = f'FPS: {fps:.2f} God: {god_mode} {player_pos[0]:.2f} {player_pos[1]:.2f}'
+    fps_text_shadow = font.render(txt, True, (0, 0, 0))
+    screen.blit(fps_text_shadow, (11, 11))  # Offset by 1 pixel
+    fps_text = font.render(txt, True, (255, 255, 255))
     screen.blit(fps_text, (10, 10))
 
     pygame.display.flip()
