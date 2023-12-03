@@ -19,10 +19,10 @@ god_mode = False
 # Define the map
 MAP = [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    [1, 0, 1, 1, 1, 0, 1, 1, 0, 1],
-    [1, 0, 1, 0, 0, 0, 0, 1, 0, 1],
-    [1, 0, 1, 0, 1, 1, 0, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+    [1, 0, 1, 1, 1, 0, 1, 1, 0, 3],
+    [1, 0, 1, 0, 0, 0, 0, 1, 0, 4],
+    [1, 0, 1, 0, 1, 1, 0, 1, 0, 5],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 0, 1, 0, 1, 1, 0, 1, 0, 1],
     [1, 0, 1, 0, 0, 0, 0, 1, 0, 1],
@@ -30,6 +30,15 @@ MAP = [
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ]
+
+# Define the colors for the walls
+COLOR_MAP = {
+    1: (255, 255, 255),  # White
+    2: (255, 0, 0),      # Red
+    3: (0, 0, 255),      # Blue
+    4: (0, 255, 0),      # Green
+    5: (255, 255, 0),    # Yellow
+}
 
 # Define the map size in pixels
 MAP_WIDTH = len(MAP[0]) * 10
@@ -98,6 +107,7 @@ def cast_ray(angle):
 
         # Check if ray has hit a wall
         if MAP[y][x] > 0:
+            wall_value = MAP[y][x]
             break
 
     # Calculate distance of perpendicular ray (Euclidean distance will give fisheye effect!)
@@ -107,7 +117,7 @@ def cast_ray(angle):
         perp_wall_dist = (x - player_pos[0] + (1 - step_x) / 2) / dx
     else:
         perp_wall_dist = (y - player_pos[1] + (1 - step_y) / 2) / dy
-    return perp_wall_dist, hit_side
+    return perp_wall_dist, hit_side, wall_value
 
 # Define a function to render the raycast
 def render_raycast(save_distances=False):
@@ -123,7 +133,7 @@ def render_raycast(save_distances=False):
 
     # Cast a ray for each column of the screen
     for x in range(WIDTH):
-        distance, hit  = cast_ray(player_angle + x / WIDTH - 0.5)
+        distance, hit, wall_value  = cast_ray(player_angle + x / WIDTH - 0.5)
         distances.append((distance, hit))
 
         # if hit is not None:
@@ -147,10 +157,11 @@ def render_raycast(save_distances=False):
             height = HEIGHT / distance
 
         # Calculate a grayscale color based on the distance
-        color = 255 - min(distance * 50, 255)
-        color = clamp(color, 0, 255) # distance can be a small negative number, so we clamp it
+        #color = 255 - min(distance * 50, 255)
+        #color = clamp(color, 0, 255) # distance can be a small negative number, so we clamp it            
+        color = COLOR_MAP.get(wall_value, (0, 0, 0))
 
-        pygame.draw.line(raycast_surface, (color, color, color), (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
+        pygame.draw.line(raycast_surface, color, (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
 
 
     # End the timer and calculate the elapsed time
