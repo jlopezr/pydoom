@@ -43,6 +43,9 @@ SCREEN_HEIGHT = max(HEIGHT, MAP_HEIGHT)
 # Load the wall texture
 wall_texture = pygame.image.load('wall.png')
 
+# Create a font object
+font = pygame.font.Font(None, 24)  # Change the size as needed
+
 # Set up the display
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
@@ -80,8 +83,25 @@ def cast_ray(angle):
 
         # If we've hit a wall, stop
         if MAP[int(y)][int(x)] == 1:
-            return j, (x % 1, y % 1)  # Return the refined distance and the hit point
+            if dx > 0:
+                hit_x = (x - int(x)) % 1
+            else:
+                hit_x = 1 - (x - int(x)) % 1
 
+            if dy > 0:
+                hit_y = (y - int(y)) % 1
+            else:
+                hit_y = 1 - (y - int(y)) % 1
+
+            # Determine whether the ray hit a vertical or a horizontal wall
+            if abs(dx) > abs(dy):
+                # The ray hit a vertical wall, so use the x-coordinate of the hit point as the texture coordinate
+                hit = (hit_x, hit_y)
+            else:
+                # The ray hit a horizontal wall, so use the y-coordinate of the hit point as the texture coordinate
+                hit = (hit_y, hit_x)
+
+            return j, hit
     return i, None
 
 # Define a function to render the raycast
@@ -95,39 +115,36 @@ def render_raycast(save_distances=False):
     # Start the timer
     start_time = time.time()
 
-    tx_max = 0
-    tx_min = -1
-
     # Cast a ray for each column of the screen
     for x in range(WIDTH):
         distance, hit  = cast_ray(player_angle + x / WIDTH - 0.5)
-        distances.append(distance)
+        distances.append((distance, hit))
 
-        if hit is not None:
-            # Look up the texture column
-            tx, _ = hit
-            tx = int(tx * wall_texture.get_width())
+        # if hit is not None:
+        #     # Look up the texture column
+        #     tx, _ = hit
+        #     tx = int(tx * wall_texture.get_width())
 
-            # Calculate the height of the wall slice
-            height = int(HEIGHT / max(distance, 0.0001))
+        #     # Calculate the height of the wall slice
+        #     height = int(HEIGHT / max(distance, 0.0001))
 
-            # Scale the texture column to the height of the wall slice
-            column = pygame.transform.scale(wall_texture.subsurface((tx, 0, 1, wall_texture.get_height())), (1, height))
+        #     # Scale the texture column to the height of the wall slice
+        #     column = pygame.transform.scale(wall_texture.subsurface((tx, 0, 1, wall_texture.get_height())), (1, height))
 
-            # Draw the texture column
-            surface.blit(column, (x, HEIGHT // 2 - height // 2))            
+        #     # Draw the texture column
+        #     surface.blit(column, (x, HEIGHT // 2 - height // 2))            
         
-        # # Draw a line with height inversely proportional to the distance
-        # if distance == 0:
-        #     height = HEIGHT
-        # else:
-        #     height = HEIGHT / distance
+        # Draw a line with height inversely proportional to the distance
+        if distance == 0:
+            height = HEIGHT
+        else:
+            height = HEIGHT / distance
 
-        # # Calculate a grayscale color based on the distance
-        # color = 255 - min(distance * 50, 255)
-        # color = clamp(color, 0, 255) # distance can be a small negative number, so we clamp it
+        # Calculate a grayscale color based on the distance
+        color = 255 - min(distance * 50, 255)
+        color = clamp(color, 0, 255) # distance can be a small negative number, so we clamp it
 
-        # pygame.draw.line(surface, (color, color, color), (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
+        pygame.draw.line(surface, (color, color, color), (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
 
 
     # End the timer and calculate the elapsed time
@@ -138,6 +155,7 @@ def render_raycast(save_distances=False):
     if save_distances:
         with open('distances.txt', 'w') as f:
             f.write(f'Rendering took {elapsed_time} milliseconds\n')
+            f.write(f'Player position: {player_pos} {player_angle}\n')
             for distance in distances:
                 f.write(str(distance) + '\n')
 
@@ -165,6 +183,8 @@ def render_map():
     return surface
 
 # Game loop
+print("NEW CLOCK")
+clock = pygame.time.Clock()
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -192,6 +212,7 @@ while True:
         player_angle += 0.1
     if keys[pygame.K_g]:
         god_mode = not god_mode  # Toggle god mode
+        pygame.time.wait(500)
     if keys[pygame.K_p]:
         render_raycast(True)
         pygame.time.wait(500)
@@ -209,5 +230,16 @@ while True:
     map_view = render_map()
     screen.blit(map_view, (WIDTH, (SCREEN_HEIGHT - MAP_HEIGHT) // 2))
 
+    # Calculate the FPS
+    fps = clock.get_fps()
+
+    # Render the FPS as text (shadow)
+    fps_text_shadow = font.render(f'FPS: {fps:.2f}', True, (0, 0, 0))
+    screen.blit(fps_text_shadow, (11, 11))  # Offset by 1 pixel
+    
+    # Render the FPS as text
+    fps_text = font.render(f'FPS: {fps:.2f}', True, (255, 255, 255))
+    screen.blit(fps_text, (10, 10))
+
     pygame.display.flip()
-    pygame.time.Clock().tick(FPS)
+    clock.tick(FPS)
