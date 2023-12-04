@@ -15,6 +15,7 @@ SPEED = 0.05
 player_pos = [5, 5]
 player_angle = 0
 god_mode = False
+texture_mode = False
 
 # Define the map
 MAP = [
@@ -109,6 +110,11 @@ def cast_ray(angle):
         # Check if ray has hit a wall
         if MAP[y][x] > 0:
             wall_value = MAP[y][x]
+            # Calculate the exact hit position
+            if hit_side == 0:  # Ray hit a vertical wall
+                hit_pos = player_pos[1] + ((x - player_pos[0] + (1 - step_x) / 2) / dx) * dy
+            else:  # Ray hit a horizontal wall
+                hit_pos = player_pos[0] + ((y - player_pos[1] + (1 - step_y) / 2) / dy) * dx
             break
 
     # Calculate distance of perpendicular ray (Euclidean distance will give fisheye effect!)
@@ -118,7 +124,39 @@ def cast_ray(angle):
         perp_wall_dist = (x - player_pos[0] + (1 - step_x) / 2) / dx
     else:
         perp_wall_dist = (y - player_pos[1] + (1 - step_y) / 2) / dy
-    return perp_wall_dist, hit_side, wall_value
+    return perp_wall_dist, hit_side, wall_value, hit_pos
+
+def render_line(x, distance, hit_side, wall_value,  hit_pos):
+        # Draw a line with height inversely proportional to the distance
+        if distance == 0:
+            height = HEIGHT
+        else:
+            height = HEIGHT / distance
+        
+        base_color = COLOR_MAP.get(wall_value, (0, 0, 0))
+
+        # Scale the color by a factor that decreases with distance
+        # The max() function is used to avoid division by zero
+        color = tuple(int(c / max(distance / 1.5, 1)) for c in base_color)
+        
+        pygame.draw.line(raycast_surface, color, (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
+
+def render_texture(x, distance, hit_side, wall_value, hit_pos):
+
+    if hit_pos is not None:
+        # Look up the texture column
+        tx = hit_pos
+        tx = int(tx * wall_texture.get_width())
+
+        # Calculate the height of the wall slice
+        height = int(HEIGHT / max(distance, 0.0001))
+
+        # Scale the texture column to the height of the wall slice
+        tx = tx % wall_texture.get_width()
+        column = pygame.transform.scale(wall_texture.subsurface((tx, 0, 1, wall_texture.get_height())), (1, height))
+
+        # Draw the texture column
+        raycast_surface.blit(column, (x, HEIGHT // 2 - height // 2))            
 
 # Define a function to render the raycast
 def render_raycast(save_distances=False):
@@ -134,37 +172,13 @@ def render_raycast(save_distances=False):
 
     # Cast a ray for each column of the screen
     for x in range(WIDTH):
-        distance, hit, wall_value  = cast_ray(player_angle + x / WIDTH - 0.5)
+        distance, hit, wall_value, hit_pos = cast_ray(player_angle + x / WIDTH - 0.5)
         distances.append((distance, hit))
 
-        # if hit is not None:
-        #     # Look up the texture column
-        #     tx, _ = hit
-        #     tx = int(tx * wall_texture.get_width())
-
-        #     # Calculate the height of the wall slice
-        #     height = int(HEIGHT / max(distance, 0.0001))
-
-        #     # Scale the texture column to the height of the wall slice
-        #     column = pygame.transform.scale(wall_texture.subsurface((tx, 0, 1, wall_texture.get_height())), (1, height))
-
-        #     # Draw the texture column
-        #     surface.blit(column, (x, HEIGHT // 2 - height // 2))            
-        
-        # Draw a line with height inversely proportional to the distance
-        if distance == 0:
-            height = HEIGHT
+        if texture_mode:
+            render_texture(x, distance, hit, wall_value, hit_pos)
         else:
-            height = HEIGHT / distance
-        
-        base_color = COLOR_MAP.get(wall_value, (0, 0, 0))
-                
-        # Scale the color by a factor that decreases with distance
-        # The max() function is used to avoid division by zero
-        color = tuple(int(c / max(distance / 1.5, 1)) for c in base_color)
-        
-        pygame.draw.line(raycast_surface, color, (x, HEIGHT // 2 - height // 2), (x, HEIGHT // 2 + height // 2))
-
+            render_line(x, distance, hit, wall_value, hit_pos)
 
     # End the timer and calculate the elapsed time
     end_time = time.time()
@@ -228,6 +242,10 @@ while True:
     if keys[pygame.K_g]:
         god_mode = not god_mode  # Toggle god mode
         pygame.time.wait(500)
+    if keys[pygame.K_t]:
+        texture_mode = not texture_mode  # Toggle texture mode
+        pygame.time.wait(500)
+
     if keys[pygame.K_p]:
         render_raycast(True)
         pygame.time.wait(500)
