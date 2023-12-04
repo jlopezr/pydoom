@@ -2,6 +2,18 @@ import pygame
 import sys
 import math
 import time
+from enum import Enum
+
+class TextureMode(Enum):
+    FLAT = 1
+    TEXTURES = 2
+    LIT_TEXTURES = 3
+
+# Return a new image that is a lighter version of the given image.
+def lighten_image(image, amount=(40, 40, 40)):
+    lighter_image = image.copy()
+    lighter_image.fill(amount, special_flags=pygame.BLEND_RGBA_ADD)
+    return lighter_image
 
 # Initialize Pygame
 pygame.init()
@@ -15,7 +27,7 @@ SPEED = 0.05
 player_pos = [5, 5]
 player_angle = 0
 god_mode = False
-texture_mode = False
+texture_mode = TextureMode.FLAT
 
 # Define the map
 MAP = [
@@ -49,6 +61,9 @@ TEXTURE_MAP = {
     4: pygame.image.load('wall4.jpeg'),
     5: pygame.image.load('wall5.jpeg'),
 }
+
+# Generate a lighter version of the map
+TEXTURE_LIT_MAP = {key: lighten_image(image) for key, image in TEXTURE_MAP.items()}
 
 # Define the map size in pixels
 MAP_WIDTH = len(MAP[0]) * 10
@@ -153,7 +168,10 @@ def render_texture(x, distance, hit_side, wall_value, hit_pos):
     if hit_pos is not None:
 
         # Look up the wall texture
-        wall_texture = TEXTURE_MAP.get(wall_value)
+        if texture_mode == TextureMode.LIT_TEXTURES and hit_side == 0:
+            wall_texture = TEXTURE_LIT_MAP.get(wall_value)                    
+        else:
+            wall_texture = TEXTURE_MAP.get(wall_value)
 
         # Look up the texture column
         tx = hit_pos
@@ -186,11 +204,11 @@ def render_raycast(save_distances=False):
         distance, hit, wall_value, hit_pos = cast_ray(player_angle + x / WIDTH - 0.5)
         distances.append((distance, hit))
 
-        if texture_mode:
-            render_texture(x, distance, hit, wall_value, hit_pos)
-        else:
+        if texture_mode == TextureMode.FLAT:
             render_line(x, distance, hit, wall_value, hit_pos)
-
+        else:
+            render_texture(x, distance, hit, wall_value, hit_pos)
+            
     # End the timer and calculate the elapsed time
     end_time = time.time()
     elapsed_time = (end_time - start_time) * 1000  # Convert to milliseconds
@@ -254,7 +272,7 @@ while True:
         god_mode = not god_mode  # Toggle god mode
         pygame.time.wait(500)
     if keys[pygame.K_t]:
-        texture_mode = not texture_mode  # Toggle texture mode
+        texture_mode = TextureMode((texture_mode.value % 3) + 1) # Cycle over texture modes
         pygame.time.wait(500)
 
     if keys[pygame.K_p]:
