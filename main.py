@@ -41,6 +41,15 @@ COLOR_MAP = {
     5: (255, 255, 0),    # Yellow
 }
 
+# Load the wall texture
+TEXTURE_MAP = {
+    1: pygame.image.load('wall2.jpeg'),
+    2: pygame.image.load('wall.png'),
+    3: pygame.image.load('wall3.jpeg'),
+    4: pygame.image.load('wall4.jpeg'),
+    5: pygame.image.load('wall5.jpeg'),
+}
+
 # Define the map size in pixels
 MAP_WIDTH = len(MAP[0]) * 10
 MAP_HEIGHT = len(MAP) * 10
@@ -48,9 +57,6 @@ MAP_HEIGHT = len(MAP) * 10
 # Define the screen size
 SCREEN_WIDTH = WIDTH + MAP_WIDTH
 SCREEN_HEIGHT = max(HEIGHT, MAP_HEIGHT)
-
-# Load the wall texture
-wall_texture = pygame.image.load('wall.png')
 
 # Create a font object
 font = pygame.font.Font(None, 24)  # Change the size as needed
@@ -95,6 +101,7 @@ def cast_ray(angle):
     # Perform DDA
     x, y = int(player_pos[0]), int(player_pos[1])
     hit_side = None
+    hit_pos = None
     wall_value = None
     while MAP[y][x] == 0:
         # Jump to next map square
@@ -144,6 +151,10 @@ def render_line(x, distance, hit_side, wall_value,  hit_pos):
 def render_texture(x, distance, hit_side, wall_value, hit_pos):
 
     if hit_pos is not None:
+
+        # Look up the wall texture
+        wall_texture = TEXTURE_MAP.get(wall_value)
+
         # Look up the texture column
         tx = hit_pos
         tx = int(tx * wall_texture.get_width())
