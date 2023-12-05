@@ -15,6 +15,14 @@ def lighten_image(image, amount=(40, 40, 40)):
     lighter_image.fill(amount, special_flags=pygame.BLEND_RGBA_ADD)
     return lighter_image
 
+# Normalize an angle to the range -π to π
+def normalize_angle(angle):
+    while angle <= -math.pi:
+        angle += 2 * math.pi
+    while angle > math.pi:
+        angle -= 2 * math.pi
+    return angle
+
 # Initialize Pygame
 pygame.init()
 
@@ -24,10 +32,11 @@ FPS = 60
 SPEED = 0.05
 
 # Define the player
-player_pos = [5, 5]
+player_pos = [5, 5.5]
 player_angle = 0
 god_mode = False
 texture_mode = TextureMode.FLAT
+objects_mode = False
 
 # Define the map
 MAP = [
@@ -53,6 +62,9 @@ COLOR_MAP = {
     5: (255, 255, 0),    # Yellow
 }
 
+FLOOR_COLOR = (100, 100, 100)
+CEILING_COLOR = (50, 50, 50)
+
 # Load the wall texture
 TEXTURE_MAP = {
     1: pygame.image.load('wall2.jpeg'),
@@ -64,6 +76,19 @@ TEXTURE_MAP = {
 
 # Generate a lighter version of the map
 TEXTURE_LIT_MAP = {key: lighten_image(image) for key, image in TEXTURE_MAP.items()}
+
+# Load objects textures
+OBJECTS_TEXTURES = {
+    1: pygame.image.load('guard1.png')
+}
+
+# Define the objects
+objects = [
+    {
+        'pos': (7, 5.5),
+        'texture': OBJECTS_TEXTURES[1]
+    }
+]
 
 # Define the map size in pixels
 MAP_WIDTH = len(MAP[0]) * 10
@@ -190,8 +215,11 @@ def render_texture(x, distance, hit_side, wall_value, hit_pos):
 # Define a function to render the raycast
 def render_raycast(save_distances=False):
 
-    # Fill the render surface with black
-    raycast_surface.fill((0, 0, 0))
+    # Fill the top half of the surface with the ceiling color
+    raycast_surface.fill(CEILING_COLOR, (0, 0, raycast_surface.get_width(), raycast_surface.get_height() // 2))
+
+    # Fill the bottom half of the surface with the floor color
+    raycast_surface.fill(FLOOR_COLOR, (0, raycast_surface.get_height() // 2, raycast_surface.get_width(), raycast_surface.get_height() // 2))
 
     # Create a list to store the distances
     distances = []
@@ -201,14 +229,14 @@ def render_raycast(save_distances=False):
 
     # Cast a ray for each column of the screen
     for x in range(WIDTH):
-        distance, hit, wall_value, hit_pos = cast_ray(player_angle + x / WIDTH - 0.5)
+        distance, hit, wall_value, hit_pos = cast_ray(player_angle + x / WIDTH - 0.5) # FOV is 1 radian. Subtract 0.5 to center the ray
         distances.append((distance, hit))
 
         if texture_mode == TextureMode.FLAT:
             render_line(x, distance, hit, wall_value, hit_pos)
         else:
             render_texture(x, distance, hit, wall_value, hit_pos)
-            
+
     # End the timer and calculate the elapsed time
     end_time = time.time()
     elapsed_time = (end_time - start_time) * 1000  # Convert to milliseconds
@@ -221,9 +249,41 @@ def render_raycast(save_distances=False):
             for distance in distances:
                 f.write(str(distance) + '\n')
 
+# Define a function to render the objects
+def render_objects():
+    for obj in objects:
+        # Calculate the distance to the object
+        dx = obj['pos'][0] - player_pos[0]
+        dy = obj['pos'][1] - player_pos[1]
+        distance = math.sqrt(dx ** 2 + dy ** 2)
+
+        # Calculate the angle to the object
+        angle = math.atan2(dy, dx)
+
+        # Calculate the angle difference between the player's angle and the angle to the object
+        angle_diff = angle - player_angle
+
+        # Calculate the projected object height
+        projected_height = HEIGHT / distance
+
+        # Calculate the projected object width
+        projected_width = projected_height
+
+        # Calculate the x position of the object on the screen. FOV 1 is 1 radian
+        #x = (angle_diff * WIDTH / math.pi) + (WIDTH / 2) - (projected_width / 2)
+        x = (angle_diff * WIDTH / 1) + (WIDTH / 2) - (projected_width / 2)
+
+        # Calculate the y position of the object on the screen
+        y = (SCREEN_HEIGHT - projected_height) / 2
+
+        # Scale the object to the projected height
+        scaled_obj = pygame.transform.scale(obj['texture'], (int(projected_width), int(projected_height)))
+
+        # Draw the object
+        raycast_surface.blit(scaled_obj, (x, y))
+
 # Define a function to render the map
 def render_map():
-
     # Fill the map surface with black
     map_surface.fill((0, 0, 0))
 
@@ -240,6 +300,10 @@ def render_map():
     dx = math.cos(player_angle) * 20
     dy = math.sin(player_angle) * 20
     pygame.draw.line(map_surface, (255, 0, 0), (int(player_pos[0] * 10), int(player_pos[1] * 10)), (int(player_pos[0] * 10 + dx), int(player_pos[1] * 10 + dy)))
+
+    # Draw the objects
+    for obj in objects:
+        pygame.draw.circle(map_surface, (0, 255, 0), (int(obj['pos'][0] * 10), int(obj['pos'][1] * 10)), 5)
 
 # Game loop
 clock = pygame.time.Clock()
@@ -274,10 +338,15 @@ while True:
     if keys[pygame.K_t]:
         texture_mode = TextureMode((texture_mode.value % 3) + 1) # Cycle over texture modes
         pygame.time.wait(500)
-
+    if keys[pygame.K_o]:
+        objects_mode = not objects_mode  # Toggle objects mode
+        pygame.time.wait(500)
     if keys[pygame.K_p]:
         render_raycast(True)
         pygame.time.wait(500)
+    if keys[pygame.K_ESCAPE]:
+        pygame.quit()
+        sys.exit()
 
     # Check if the new position is inside a wall    
     if god_mode or MAP[int(new_pos[1])][int(new_pos[0])] == 0:
@@ -286,17 +355,19 @@ while True:
 
     # Render the raycast and blit it onto the screen
     render_raycast()
+    if objects_mode:
+        render_objects()
     screen.blit(raycast_surface, (0, (SCREEN_HEIGHT - HEIGHT) // 2))
 
     # Render the map and blit it onto the screen
-    render_map()    
+    render_map()
     screen.blit(map_surface, (WIDTH, (SCREEN_HEIGHT - MAP_HEIGHT) // 2))
 
     # Calculate the FPS
     fps = clock.get_fps()
 
     # Render the FPS as text
-    txt = f'FPS: {fps:.2f} God: {god_mode} {player_pos[0]:.2f} {player_pos[1]:.2f}'
+    txt = f'FPS: {fps:.2f} God: {god_mode} {player_pos[0]:.2f} {player_pos[1]:.2f} {math.degrees(player_angle):.2f}º'
     fps_text_shadow = font.render(txt, True, (0, 0, 0))
     screen.blit(fps_text_shadow, (11, 11))  # Offset by 1 pixel
     fps_text = font.render(txt, True, (255, 255, 255))
