@@ -12,8 +12,22 @@ class TextureMode(Enum):
 # Return a new image that is a lighter version of the given image.
 def lighten_image(image, amount=(40, 40, 40)):
     lighter_image = image.copy()
-    lighter_image.fill(amount, special_flags=pygame.BLEND_RGBA_ADD)
+    lighter_image.fill(amount, special_flags=pygame.BLEND_RGBA_ADD)    
     return lighter_image
+
+# function that adds a 1 pixel border to the image in pink color
+def add_border_image(image, color=(255,0,255)):
+    w, h = image.get_size()
+    new_image = image.copy()
+    #new_image.fill(color)
+
+    pygame.draw.line(new_image, color, (0, 0), (w, 0))
+    pygame.draw.line(new_image, color, (0, h-1), (w, h-1))
+    pygame.draw.line(new_image, color, (0, 0), (0, h))
+    pygame.draw.line(new_image, color, (w-1, 0), (w-1, h))
+
+    new_image.blit(image, (1, 1))
+    return new_image
 
 # Normalize an angle to the range -π to π
 def normalize_angle(angle):
@@ -47,9 +61,9 @@ MAP = [
     [1, 0, 1, 0, 1, 1, 0, 1, 0, 5],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 0, 1, 0, 1, 1, 0, 1, 0, 1],
-    [1, 0, 1, 0, 0, 0, 0, 1, 0, 1],
-    [1, 0, 1, 1, 1, 0, 1, 1, 0, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 1, 0, 0, 0, 0, 1, 0, 2],
+    [1, 0, 1, 1, 1, 0, 1, 1, 0, 2],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 2],
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ]
 
@@ -79,7 +93,8 @@ TEXTURE_LIT_MAP = {key: lighten_image(image) for key, image in TEXTURE_MAP.items
 
 # Load objects textures
 OBJECTS_TEXTURES = {
-    1: pygame.image.load('guard1.png')
+    1: add_border_image(pygame.image.load('guard1.png')),
+    2: add_border_image(pygame.image.load('lamp.png'))
 }
 
 # Define the objects
@@ -87,7 +102,11 @@ objects = [
     {
         'pos': (7, 5.5),
         'texture': OBJECTS_TEXTURES[1]
-    }
+    },
+       {
+        'pos': (1.5, 1.5),
+        'texture': OBJECTS_TEXTURES[2]
+    }   
 ]
 
 # Define the map size in pixels
@@ -250,7 +269,11 @@ def render_raycast(save_distances=False):
                 f.write(str(distance) + '\n')
 
 # Define a function to render the objects
-def render_objects():
+def render_objects(save_distances=False):
+
+    # Create a list to store the distances
+    distances = []
+
     for obj in objects:
         # Calculate the distance to the object
         dx = obj['pos'][0] - player_pos[0]
@@ -261,7 +284,7 @@ def render_objects():
         angle = math.atan2(dy, dx)
 
         # Calculate the angle difference between the player's angle and the angle to the object
-        angle_diff = angle - player_angle
+        angle_diff = normalize_angle(angle - player_angle)
 
         # Calculate the projected object height
         projected_height = HEIGHT / distance
@@ -281,6 +304,14 @@ def render_objects():
 
         # Draw the object
         raycast_surface.blit(scaled_obj, (x, y))
+
+        if save_distances:
+            distances.append((distance, angle_diff, projected_width, projected_height, x, y, angle, player_angle))
+
+    if save_distances:
+        with open('objects.txt', 'a') as f:
+            for distance in distances:
+                f.write(str(distance) + '\n')
 
 # Define a function to render the map
 def render_map():
@@ -343,10 +374,14 @@ while True:
         pygame.time.wait(500)
     if keys[pygame.K_p]:
         render_raycast(True)
+        render_objects(True)
         pygame.time.wait(500)
     if keys[pygame.K_ESCAPE]:
         pygame.quit()
         sys.exit()
+
+    # Normalize the player's angle
+    player_angle = normalize_angle(player_angle)
 
     # Check if the new position is inside a wall    
     if god_mode or MAP[int(new_pos[1])][int(new_pos[0])] == 0:
