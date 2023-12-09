@@ -4,10 +4,20 @@ import math
 import time
 from enum import Enum
 
+# TODO
+# - Add doors
+# - Add AI
+# - Add perspective correction to textures
+
 class TextureMode(Enum):
     FLAT = 1
     TEXTURES = 2
     LIT_TEXTURES = 3
+
+class ObjectMode(Enum):
+    NONE = 1
+    OBJECTS = 2
+    OBJECTS_OCLUSSION = 3
 
 # Return a new image that is a lighter version of the given image.
 def lighten_image(image, amount=(40, 40, 40)):
@@ -50,7 +60,7 @@ player_pos = [5, 5.5]
 player_angle = 0
 god_mode = False
 texture_mode = TextureMode.FLAT
-objects_mode = False
+objects_mode = ObjectMode.NONE
 
 # Define the map
 MAP = [
@@ -103,10 +113,10 @@ objects = [
         'pos': (7, 5.5),
         'texture': OBJECTS_TEXTURES[1]
     },
-       {
-        'pos': (1.5, 1.5),
-        'texture': OBJECTS_TEXTURES[2]
-    }   
+    #    {
+    #     'pos': (1.5, 1.5),
+    #     'texture': OBJECTS_TEXTURES[2]
+    # }   
 ]
 
 # Define the map size in pixels
@@ -116,6 +126,11 @@ MAP_HEIGHT = len(MAP) * 10
 # Define the screen size
 SCREEN_WIDTH = WIDTH + MAP_WIDTH
 SCREEN_HEIGHT = max(HEIGHT, MAP_HEIGHT)
+
+# Define an array distances of width equal to the screen width
+distances = [0] * WIDTH
+
+print(len(distances))
 
 # Create a font object
 font = pygame.font.Font(None, 24)  # Change the size as needed
@@ -178,18 +193,18 @@ def cast_ray(angle):
             wall_value = MAP[y][x]
             # Calculate the exact hit position
             if hit_side == 0:  # Ray hit a vertical wall
-                hit_pos = player_pos[1] + ((x - player_pos[0] + (1 - step_x) / 2) / dx) * dy
+                hit_pos = player_pos[1] + ((x - player_pos[0] + (1 - step_x) / 2) / (dx + 1e-6)) * dy
             else:  # Ray hit a horizontal wall
-                hit_pos = player_pos[0] + ((y - player_pos[1] + (1 - step_y) / 2) / dy) * dx
+                hit_pos = player_pos[0] + ((y - player_pos[1] + (1 - step_y) / 2) / (dy + 1e-6)) * dx
             break
 
     # Calculate distance of perpendicular ray (Euclidean distance will give fisheye effect!)
     if hit_side is None:
         perp_wall_dist = 0  # or some other default value
     elif hit_side == 0:
-        perp_wall_dist = (x - player_pos[0] + (1 - step_x) / 2) / dx
+        perp_wall_dist = (x - player_pos[0] + (1 - step_x) / 2) / (dx + 1e-6)
     else:
-        perp_wall_dist = (y - player_pos[1] + (1 - step_y) / 2) / dy
+        perp_wall_dist = (y - player_pos[1] + (1 - step_y) / 2) / (dy + 1e-6)
     return perp_wall_dist, hit_side, wall_value, hit_pos
 
 def render_line(x, distance, hit_side, wall_value,  hit_pos):
@@ -240,16 +255,13 @@ def render_raycast(save_distances=False):
     # Fill the bottom half of the surface with the floor color
     raycast_surface.fill(FLOOR_COLOR, (0, raycast_surface.get_height() // 2, raycast_surface.get_width(), raycast_surface.get_height() // 2))
 
-    # Create a list to store the distances
-    distances = []
-
     # Start the timer
     start_time = time.time()
 
     # Cast a ray for each column of the screen
     for x in range(WIDTH):
         distance, hit, wall_value, hit_pos = cast_ray(player_angle + x / WIDTH - 0.5) # FOV is 1 radian. Subtract 0.5 to center the ray
-        distances.append((distance, hit))
+        distances[x] = distance
 
         if texture_mode == TextureMode.FLAT:
             render_line(x, distance, hit, wall_value, hit_pos)
@@ -272,7 +284,7 @@ def render_raycast(save_distances=False):
 def render_objects(save_distances=False):
 
     # Create a list to store the distances
-    distances = []
+    obj_distances = []
 
     for obj in objects:
         # Calculate the distance to the object
@@ -302,15 +314,32 @@ def render_objects(save_distances=False):
         # Scale the object to the projected height
         scaled_obj = pygame.transform.scale(obj['texture'], (int(projected_width), int(projected_height)))
 
-        # Draw the object
-        raycast_surface.blit(scaled_obj, (x, y))
+        if objects_mode == ObjectMode.OBJECTS:
+            # Draw the object
+            raycast_surface.blit(scaled_obj, (x, y))
+        else:
+            # Draw the object with occlusion
+            for i in range(int(x), int(x+projected_width)):
 
+                # Skip if the distance is greater than the distance already stored
+                if i<0:
+                    continue            
+                if i>=WIDTH:
+                    break
+                if distances[i] < distance:
+                    continue
+
+                # get column from texture
+                tx = (i - x)
+                column = scaled_obj.subsurface((tx, 0, 1, scaled_obj.get_height()))
+                raycast_surface.blit(column, (i, y))
+            
         if save_distances:
-            distances.append((distance, angle_diff, projected_width, projected_height, x, y, angle, player_angle))
+            obj_distances.append((distance, angle_diff, projected_width, projected_height, x, y, angle, player_angle))
 
     if save_distances:
         with open('objects.txt', 'a') as f:
-            for distance in distances:
+            for distance in obj_distances:
                 f.write(str(distance) + '\n')
 
 # Define a function to render the map
@@ -370,7 +399,7 @@ while True:
         texture_mode = TextureMode((texture_mode.value % 3) + 1) # Cycle over texture modes
         pygame.time.wait(500)
     if keys[pygame.K_o]:
-        objects_mode = not objects_mode  # Toggle objects mode
+        objects_mode = ObjectMode((objects_mode.value % 3) + 1) # Cycle over object modes
         pygame.time.wait(500)
     if keys[pygame.K_p]:
         render_raycast(True)
@@ -390,7 +419,7 @@ while True:
 
     # Render the raycast and blit it onto the screen
     render_raycast()
-    if objects_mode:
+    if objects_mode != ObjectMode.NONE:
         render_objects()
     screen.blit(raycast_surface, (0, (SCREEN_HEIGHT - HEIGHT) // 2))
 
