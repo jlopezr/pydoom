@@ -3,11 +3,13 @@ import sys
 import math
 import time
 from enum import Enum
+from objects import GameObject, DynamicObject
 
 # TODO
 # - Add doors
 # - Add AI
 # - Add perspective correction to textures
+# - Avoid slowdown when rendering near objects / walls
 
 class TextureMode(Enum):
     FLAT = 1
@@ -18,6 +20,7 @@ class ObjectMode(Enum):
     NONE = 1
     OBJECTS = 2
     OBJECTS_OCLUSSION = 3
+
 
 # Return a new image that is a lighter version of the given image.
 def lighten_image(image, amount=(40, 40, 40)):
@@ -104,19 +107,17 @@ TEXTURE_LIT_MAP = {key: lighten_image(image) for key, image in TEXTURE_MAP.items
 # Load objects textures
 OBJECTS_TEXTURES = {
     1: add_border_image(pygame.image.load('guard1.png')),
-    2: add_border_image(pygame.image.load('lamp.png'))
+    2: add_border_image(pygame.image.load('clown.png')),
+    3: pygame.image.load('campfire1.png'),
+    4: pygame.image.load('campfire2.png'),
+    5: pygame.image.load('campfire3.png'),
 }
 
 # Define the objects
 objects = [
-    {
-        'pos': (7, 5.5),
-        'texture': OBJECTS_TEXTURES[1]
-    },
-    #    {
-    #     'pos': (1.5, 1.5),
-    #     'texture': OBJECTS_TEXTURES[2]
-    # }   
+    GameObject((7, 5.5), OBJECTS_TEXTURES[1]),
+    GameObject((1.5, 1.5), OBJECTS_TEXTURES[2]),
+    DynamicObject((3.5, 4.5), [OBJECTS_TEXTURES[3], OBJECTS_TEXTURES[4], OBJECTS_TEXTURES[5]]),
 ]
 
 # Define the map size in pixels
@@ -129,8 +130,6 @@ SCREEN_HEIGHT = max(HEIGHT, MAP_HEIGHT)
 
 # Define an array distances of width equal to the screen width
 distances = [0] * WIDTH
-
-print(len(distances))
 
 # Create a font object
 font = pygame.font.Font(None, 24)  # Change the size as needed
@@ -238,7 +237,8 @@ def render_texture(x, distance, hit_side, wall_value, hit_pos):
 
         # Calculate the height of the wall slice
         height = int(HEIGHT / max(distance, 0.0001))
-
+        height = min(height, HEIGHT*50) # Avoid too tall walls to avoid slowdown
+        
         # Scale the texture column to the height of the wall slice
         tx = tx % wall_texture.get_width()
         column = pygame.transform.scale(wall_texture.subsurface((tx, 0, 1, wall_texture.get_height())), (1, height))
@@ -288,8 +288,8 @@ def render_objects(save_distances=False):
 
     for obj in objects:
         # Calculate the distance to the object
-        dx = obj['pos'][0] - player_pos[0]
-        dy = obj['pos'][1] - player_pos[1]
+        dx = obj.pos[0] - player_pos[0]
+        dy = obj.pos[1] - player_pos[1]
         distance = math.sqrt(dx ** 2 + dy ** 2)
 
         # Calculate the angle to the object
@@ -312,7 +312,7 @@ def render_objects(save_distances=False):
         y = (SCREEN_HEIGHT - projected_height) / 2
 
         # Scale the object to the projected height
-        scaled_obj = pygame.transform.scale(obj['texture'], (int(projected_width), int(projected_height)))
+        scaled_obj = pygame.transform.scale(obj.texture, (int(projected_width), int(projected_height)))
 
         if objects_mode == ObjectMode.OBJECTS:
             # Draw the object
@@ -363,7 +363,7 @@ def render_map():
 
     # Draw the objects
     for obj in objects:
-        pygame.draw.circle(map_surface, (0, 255, 0), (int(obj['pos'][0] * 10), int(obj['pos'][1] * 10)), 5)
+        pygame.draw.circle(map_surface, (0, 255, 0), (int(obj.pos[0] * 10), int(obj.pos[1] * 10)), 5)
 
 # Game loop
 clock = pygame.time.Clock()
